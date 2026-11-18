@@ -1,0 +1,2465 @@
+openapi: 3.0.1
+info:
+  title: S-Filer server internal API
+  description: |
+    Base internal API for secure file transfer. This API is exposed by
+    the server to anyone who would want to use it but since it is an internal API,
+    there is no guarantee about the backward compatibility when a new version of S-Filer
+    is released. This means the service behaviour is subject to change without notice.
+
+    Every endpoint accepts an optional `X-REQUEST-ID` request header and every response carries one. It is the
+    identifier the call is logged under, so quoting it lets support follow the call across components. A supplied
+    value is kept only when it is at most 64 characters of letters, digits, `.`, `_` or `-`; anything else is
+    rejected and replaced by a generated identifier. The response header always names the identifier actually used.
+  version: v3
+servers:
+  - url: http://localhost/internal/api/v3
+  - url: https://localhost/internal/api/v3
+security:
+  - AuthToken: [ ]
+tags:
+  - name: Authentication
+    description: The Authentication internal endpoint.
+  - name: Users
+    description: The Users internal endpoint.
+  - name: Groups
+    description: The Groups internal endpoint.
+  - name: Communities
+    description: The Communities internal endpoint.
+  - name: DirectAccessTokens
+    description: The DirectAccessTokens internal endpoint.
+  - name: Configuration
+    description: The Configuration internal endpoint.
+  - name: Reports
+    description: The Reports internal endpoint.
+  - name: Transfers
+    description: The Transfers internal endpoint.
+  - name: Templates
+    description: The Templates internal endpoint.
+  - name: Passwords
+    description: The Passwords internal endpoint.
+  - name: Themes
+    description: The Themes internal endpoint.
+  - name: NotificationThemes
+    description: The NotificationThemes internal endpoint.
+  - name: Policies
+    description: The Password Policy internal endpoint.
+paths:
+  /auth/domains/find-base-url:
+    get:
+      summary: Retrieve the domain base URL
+      description: Returns the base URL configuration parameter for the specified domain.
+      operationId: findDomainBaseUrl
+      parameters:
+        - name: domainId
+          description: The domain id.
+          in: query
+          schema:
+            type: integer
+      tags:
+        - Authentication
+      responses:
+        200:
+          description: The domain base URL was successfully returned.
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: The domain base URL
+                example: https://sfiler.domain.com/sfiler
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /users/shares/owners:
+    get:
+      summary: Find all shares owned by users specified
+      description: Find all shares owned by users specified
+      operationId: findOwnedSharesByUsers
+      parameters:
+        - name: userIds
+          in: query
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: integer
+      tags:
+        - Users
+      responses:
+        '200':
+          description: Owned shares by users were successfully retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShareOwner'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /users/match-identities:
+    get:
+      summary: Get the list of internal users matching the email of the authenticated user.
+      description: Get the list of internal users matching the email of the authenticated user.
+      operationId: matchIdentities
+      tags:
+        - Users
+      responses:
+        '200':
+          description: The list of internal Users having the same email as the authenticated user.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SwitchDomainMatchingUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /users/{userId}/prepare-domain-switch:
+    post:
+      summary: Prepare an upcoming domain switch.
+      description: Prepare an upcoming domain switch. This operation will then allow the system to propose a confirmation page after a successful login. The targeted user domain, and optionally its username, will be taken from the authenticated user.
+      operationId: prepareUserDomainSwitch
+      parameters:
+        - name: userId
+          description: The Id of the targeted user by the domain switch.
+          in: path
+          required: true
+          schema:
+            type: integer
+      tags:
+        - Users
+      responses:
+        '200':
+          description: The domain switch preparation has been completed successfully.
+          content: { }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /users/domain-switch:
+    post:
+      summary: Execute the domain switch.
+      description: Execute the domain switch. After the execution of this request, the authenticated user will be assigned to its new domain.
+      operationId: executeUserDomainSwitch
+      tags:
+        - Users
+      responses:
+        '200':
+          description: The domain switch has been executed successfully.
+          content: { }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /users/abort-domain-switch:
+    post:
+      summary: Abort the domain switch.
+      description: Abort the domain switch. This operation aborts the domain switch for the authenticated user.
+      operationId: abortUserDomainSwitch
+      tags:
+        - Users
+      responses:
+        '200':
+          description: The domain switch has been aborted successfully.
+          content: { }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /users/find-domain-switch-status:
+    post:
+      summary: Post a request that gives the status of a possible ongoing domain switch.
+      description: Post a request that gives the status of a possible ongoing domain switch for a specific user.
+      operationId: findDomainSwitchStatus
+      tags:
+        - Users
+      responses:
+        '200':
+          description: The domain switch status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainSwitchStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /users/retrieve-sender-groups:
+    get:
+      summary: Get available groups that the authenticated user can use to send file
+      description: Get available groups that the authenticated user can use for send file.
+      operationId: getGroupsAllowedForSendFile
+      tags:
+        - Users
+      responses:
+        '200':
+          description: The list of available groups.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserGroupSender'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  '/users/referenced-entities':
+    get:
+      summary: Find all referenced entities for users specified
+      description: Find all referenced entities for users specified
+      operationId: findReferencedEntitiesForUsers
+      parameters:
+        - name: userIds
+          in: query
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: integer
+      tags:
+        - Users
+      responses:
+        '200':
+          description: Referenced entities for users were successfully retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Entity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  '/users/{userId}/find-mfa-status':
+    get:
+      summary: Find the MFA status of the user.
+      description: Find the MFA status of the user.
+      operationId: findMfaStatus
+      parameters:
+        - name: userId
+          description: The Id of the user.
+          in: path
+          required: true
+          schema:
+            type: integer
+      tags:
+        - Users
+      responses:
+        '200':
+          description: The MFA status of the user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMfaStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  '/users/manageable-users':
+    get:
+      summary: Find the id of users that can be managed by the user performing this call
+      description: Find the id of users amongst those specified in the userIds parameter (or all if not specified) that can be managed by the user performing this call
+      operationId: findManageableUsers
+      parameters:
+        - name: userIds
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: integer
+      tags:
+        - Users
+      responses:
+        '200':
+          description: Manageable user ids were successfully retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  '/users/manageable-communities':
+    get:
+      summary: Find the id of communities that can be managed by the user performing this call
+      description: Find the id of communities amongst those specified in the communityIds parameter (or all if not specified) that can be managed by the user performing this call
+      operationId: findManageableCommunities
+      parameters:
+        - name: communityIds
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: integer
+      tags:
+        - Users
+      responses:
+        '200':
+          description: Manageable community ids were successfully retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  '/groups/referenced-entities':
+    get:
+      summary: Find all referenced entities for groups specified
+      description: Find all referenced entities for groups specified
+      operationId: findReferencedEntitiesForGroups
+      parameters:
+        - name: groupIds
+          in: query
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: integer
+      tags:
+        - Groups
+      responses:
+        '200':
+          description: Referenced entities for groups were successfully retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Entity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  '/policies/referenced-entities':
+    get:
+      summary: Find all referenced entities for policies specified
+      description: Find all referenced entities for policies specified
+      operationId: findReferencedEntitiesForPolicies
+      parameters:
+        - name: policyIds
+          in: query
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: integer
+      tags:
+        - Policies
+      responses:
+        200:
+          description: Referenced entities for policies were successfully retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Entity'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  '/communities/referenced-entities':
+    get:
+      summary: Find all referenced entities for communities specified
+      description: Find all referenced entities for communities specified
+      operationId: findReferencedEntitiesForCommunities
+      parameters:
+        - name: communityIds
+          in: query
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: integer
+      tags:
+        - Communities
+      responses:
+        '200':
+          description: Referenced entities for communities were successfully retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Entity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  '/templates/referenced-entities':
+    get:
+      summary: Find all referenced entities for templates specified
+      description: Find all referenced entities for templates specified
+      operationId: findReferencedEntitiesForTemplates
+      parameters:
+        - name: templateIds
+          in: query
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: integer
+      tags:
+        - Templates
+      responses:
+        '200':
+          description: Referenced entities for templates were successfully retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Entity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /transfers/retrieve-encryption-context:
+    post:
+      summary: Retrieve the encryption context for a file
+      description: Retrieve the symmetric key, the IV and the digest algorithm that are stored in a given PKCS7 file. The symmetric key is unwrapped using the recipient''s private key and then wrapped with the supplied public key.
+      operationId: retrieveEncryptionContext
+      requestBody:
+        x-codegen-request-body-name: RetrieveEncryptionContextRequest
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetrieveEncryptionContextRequest'
+        required: true
+      tags:
+        - Transfers
+      responses:
+        '200':
+          description: Encryption context was successfully retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrieveEncryptionContextResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /transfers/store-signature-context-upload:
+    post:
+      summary: Store signature context in the database when uploading a file
+      description: Store the signature context in the database when uploading a file
+      operationId: storeSignatureContextUpload
+      requestBody:
+        x-codegen-request-body-name: StoreSignatureContextUploadRequest
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreSignatureContextUploadRequest'
+        required: true
+      tags:
+        - Transfers
+      responses:
+        '200':
+          description: Signature context was successfully saved
+          content: { }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /transfers/store-signature-context-download:
+    post:
+      summary: Store signature context in the database when downloading a file
+      description: Store the signature context in the database when downloading a file
+      operationId: storeSignatureContextDownload
+      requestBody:
+        x-codegen-request-body-name: StoreSignatureContextDownloadRequest
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreSignatureContextDownloadRequest'
+        required: true
+      tags:
+        - Transfers
+      responses:
+        '200':
+          description: Signature context was successfully saved
+          content: { }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /transfers/generate-default-anonymous-share-name:
+    post:
+      summary: Generate a default share name for an anonymous transfer in direct access token mode
+      description: |
+        Generate a default share name for an anonymous transfer in direct access token mode. The `operationType` selects the
+        configured template: `SEND` uses the Quick Send template, `REQUEST` the Request File template.
+      operationId: generateDefaultAnonymousShareName
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateDefaultAnonymousShareNameRequest'
+      tags:
+        - Transfers
+      responses:
+        '200':
+          description: The anonymous share name was successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateDefaultAnonymousShareNameResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /transfers/anonymous-share-name-availability:
+    post:
+      summary: Tell whether a share name is still free for an anonymous transfer
+      description: |
+        Answers whether the share name a caller intends to use for an anonymous transfer is still free, so a screen can mark
+        the field before the transfer is submitted rather than reporting the collision afterwards.
+
+        The name is tested exactly as `POST /http/anonymous-transfer` tests it: in the form the share actually carries,
+        which is the name decorated with the owner discriminator - `<shareName> (<owner email>)`. The answer is therefore
+        specific to the caller, and two users may hold the same base name at the same time since each one produces a
+        different stored name. The name as given is deliberately not tested: it is never stored, so a collision on it would
+        refuse a name whose stored form clashes with nothing.
+
+        Both entities a transfer provisions are consulted - the share and the user group backing it, which carry the same
+        decorated name. The group is created first, so a group holding that name refuses the transfer just as a share
+        does.
+
+        The answer is a snapshot, never a reservation: another caller can take the name in between, so the creation keeps
+        applying the rule and stays the authority. A blank name is reported as available, the creation generating one.
+
+        Sent as a POST with a body rather than as a query parameter because a share name accepts characters that would have
+        to be escaped in a URL, which is also why the neighbouring share-name operations are POSTs.
+      operationId: isAnonymousShareNameAvailable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnonymousShareNameAvailabilityRequest'
+      tags:
+        - Transfers
+      responses:
+        '200':
+          description: The availability of the share name was successfully determined
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnonymousShareNameAvailabilityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /transfers/retrieve-signature-context:
+    post:
+      summary: Retrieve signature context in the database
+      description: Retrieve the signature context in the database for a given transfer
+      operationId: retrieveSignatureContext
+      requestBody:
+        x-codegen-request-body-name: RetrieveSignatureContextRequest
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetrieveSignatureContextRequest'
+        required: true
+      tags:
+        - Transfers
+      responses:
+        '200':
+          description: Signature context was successfully retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrieveSignatureContextResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /transfers/finalize-download:
+    post:
+      summary: Finalize a download
+      description: Finalize a download by validating the message signature (if using end-to-end encryption) and setting its final status in the database.
+      operationId: finalizeDownload
+      requestBody:
+        x-codegen-request-body-name: FinalizeDownloadRequest
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinalizeDownloadRequest'
+        required: true
+      tags:
+        - Transfers
+      responses:
+        '200':
+          description: Download was successfully finalized
+          content: { }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /transfers/retrieve-system-public-key:
+    post:
+      summary: Retrieve the system public key
+      description: Retrieve the system public key
+      operationId: retrieveSystemPublicKey
+      tags:
+        - Transfers
+      responses:
+        '200':
+          description: System public key successfully retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrieveSystemPublicKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /transfers/rewrap-symmetric-key:
+    post:
+      summary: Unwrap the symmetric key and wrap it for each recipient
+      description: Unwrap the symmetric key with the system private key and wrap it with the public key of each recipient of a file.
+      operationId: rewrapSymmetricKey
+      requestBody:
+        x-codegen-request-body-name: RewrapSymmetricKeyRequest
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RewrapSymmetricKeyRequest'
+        required: true
+      tags:
+        - Transfers
+      responses:
+        '200':
+          description: Symmetric key successfully rewrapped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RewrapSymmetricKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /transfers/calculate-message-signature:
+    post:
+      summary: Calculate the message signature of a file being uploaded
+      description: Calculate the message signature of a file being uploaded
+      operationId: calculateMessageSignature
+      requestBody:
+        x-codegen-request-body-name: CalculateMessageSignatureRequest
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalculateMessageSignatureRequest'
+        required: true
+      tags:
+        - Transfers
+      responses:
+        '200':
+          description: Message signature successfully calculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculateMessageSignatureResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /configuration/bootstrap-configuration:
+    post:
+      summary: Bootstraps the configuration between the server and an instance of a Gateway or GUI
+      description: The bootstrap of a Gateway or GUI requires the instance to send its public certificate that will be used to communicate with the server. If
+        the certificate is valid, the server updates the configuration instance if needed (based on the version) and returns the crypto material (keys, certificates)
+        required to configure this Gateway or GUI instance.
+      operationId: bootstrapConfiguration
+      requestBody:
+        x-codegen-request-body-name: BootstrapConfigurationRequest
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BootstrapConfigurationRequest'
+        required: true
+      tags:
+        - Configuration
+      responses:
+        '200':
+          description: Bootstrap configuration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapConfigurationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+      security: [ ]
+  /configuration/add-untrusted-certificate:
+    post:
+      summary: Adds an unstrusted certificate
+      description: When the Gateway or the GUI detects an untrusted certificate, they don't have access to the database to add it so they must call the server to do it.
+      operationId: addUntrustedCertificate
+      requestBody:
+        x-codegen-request-body-name: AddUntrustedCertificateRequest
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddUntrustedCertificateRequest'
+        required: true
+      tags:
+        - Configuration
+      responses:
+        '200':
+          description: Untrusted certificate added successfully
+          content: { }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /configuration/resource-bundle-property-override:
+    get:
+      summary: Returns the list of resource bundle property override
+      description: Returns the list of resource bundle property override
+      operationId: findResourceBundlePropertyOverrides
+      tags:
+        - Configuration
+      responses:
+        '200':
+          description: The list of resource bundle property override was successfully returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ResourceBundlePropertyOverride'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+      security: [ ]
+  /configuration/feature-flags:
+    get:
+      summary: Find the feature flags
+      description: Find the feature flags
+      operationId: findFeatureFlags
+      parameters:
+        - name: name
+          in: query
+          description: An error will occur if the name parameter is used in combination with the filter parameter.
+          schema:
+            type: string
+        - name: filter
+          in: query
+          description: An error will occur if the filter parameter is used in combination with the name parameter.
+          schema:
+            type: string
+        - name: startIndex
+          in: query
+          description: The index of the record to start returning. 0 to start at the first record.
+          schema:
+            type: integer
+        - name: maxResults
+          in: query
+          description: The number of results to return. -1 to return all results (might consume a lot of memory if the list is large).
+          schema:
+            type: integer
+        - name: sortField
+          in: query
+          description: The fields on which the sorting will be applied.
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - NAME
+        - name: sortSequence
+          in: query
+          description: The sequence in which the elements of the list will be returned.
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - ASC
+                - DESC
+        - name: includeTotalCount
+          in: header
+          description: When using the startIndex and maxResults parameters, only a subset of the available elements may be returned. In this case, this header can
+            be used to retrieve the total count of elements available.
+          schema:
+            type: boolean
+            default: false
+      tags:
+        - Configuration
+      responses:
+        '200':
+          description: The list of feature flag have been successfully returned.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FeatureFlag'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+      security: [ ]
+  /reports/user:
+    post:
+      summary: Post a report request to be generated by the server
+      description: The report request is added to the server queue
+      operationId: generateUserReport
+      requestBody:
+        x-codegen-request-body-name: report
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserReportInfo'
+        required: true
+      tags:
+        - Reports
+      responses:
+        '200':
+          description: The report id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /reports/group:
+    post:
+      summary: Post a report request to be generated by the server
+      description: The report request is added to the server queue
+      operationId: generateGroupReport
+      requestBody:
+        x-codegen-request-body-name: report
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupReportInfo'
+        required: true
+      tags:
+        - Reports
+      responses:
+        '200':
+          description: The report id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /reports/community:
+    post:
+      summary: Post a report request to be generated by the server
+      description: The report request is added to the server queue
+      operationId: generateCommunityReport
+      requestBody:
+        x-codegen-request-body-name: report
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommunityReportInfo'
+        required: true
+      tags:
+        - Reports
+      responses:
+        '200':
+          description: The report id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /reports/keyrenewal:
+    post:
+      summary: Post a report request to be generated by the server
+      description: The report request is added to the server queue
+      operationId: generateKeyRenewalReport
+      requestBody:
+        x-codegen-request-body-name: report
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KeyRenewalReportInfo'
+        required: true
+      tags:
+        - Reports
+      responses:
+        '200':
+          description: The report id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /reports/file:
+    post:
+      summary: Post a report request to be generated by the server
+      description: The report request is added to the server queue
+      operationId: generateFileReport
+      requestBody:
+        x-codegen-request-body-name: report
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileReportInfo'
+        required: true
+      tags:
+        - Reports
+      responses:
+        '200':
+          description: The report id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /reports/event-audit:
+    post:
+      summary: Post a report request to be generated by the server
+      description: The report request is added to the server queue
+      operationId: generateEventAuditReport
+      requestBody:
+        x-codegen-request-body-name: report
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventAuditReportInfo'
+        required: true
+      tags:
+        - Reports
+      responses:
+        '200':
+          description: The report id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /reports/audit:
+    post:
+      summary: Post a report request to be generated by the server
+      description: The report request is added to the server queue
+      operationId: generateAuditReport
+      requestBody:
+        x-codegen-request-body-name: report
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditReportInfo'
+        required: true
+      tags:
+        - Reports
+      responses:
+        '200':
+          description: The report id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportId'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /reports/status/{reportId}:
+    get:
+      summary: Get the status of the report
+      description: Check if the report is ready or not to be downloaded by the client
+      operationId: getReportStatus
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: string
+      tags:
+        - Reports
+      responses:
+        '200':
+          description: The status was successfully returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /reports/{reportId}:
+    get:
+      summary: Get the report
+      description: Get the report that is ready to be downloaded
+      operationId: downloadReport
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: string
+      tags:
+        - Reports
+      responses:
+        '200':
+          description: Returns the report
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /themes/user-default:
+    get:
+      summary: Get the user's default theme
+      description: Get the user's default theme
+      operationId: getUserDefaultTheme
+      parameters:
+        - name: fallbackOnSystemDefault
+          in: query
+          description: Determines the behavior when the user does not have a default theme. When this flag is true, the system default theme will be returned. Otherwise, no default theme will be returned and the HTTP status will be 204 (NO_CONTENT).
+          schema:
+            type: boolean
+            default: true
+      tags:
+        - Themes
+      responses:
+        '200':
+          description: The user's default theme was successfully retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Theme'
+        '204':
+          description: The user does not have a default theme
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /themes/system-default:
+    get:
+      summary: Get the system default theme
+      description: Get the system default theme
+      operationId: getSystemDefaultTheme
+      tags:
+        - Themes
+      responses:
+        '200':
+          description: The system default theme was successfully retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Theme'
+        default:
+          $ref: '#/components/responses/GeneralError'
+      security: [ ]
+  /notification-themes/{id}/count-groups:
+    get:
+      summary: Count the number of groups using this notification theme
+      description: Count the number of groups using this notification theme
+      operationId: countGroupsForNotificationTheme
+      parameters:
+        - name: id
+          description: The Id of the notification theme.
+          in: path
+          required: true
+          schema:
+            type: integer
+      tags:
+        - NotificationThemes
+      responses:
+        '200':
+          description: The number of groups using this notification theme was successfully retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountResult'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /notification-themes/{id}/contents/{contentId}/validate:
+    post:
+      summary: Validate a notification theme content
+      description: Validate a notification theme content
+      operationId: validateNotificationThemeContent
+      parameters:
+        - name: id
+          description: The Id of the notification theme.
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: contentId
+          description: The Id of the notification theme content.
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        x-codegen-request-body-name: ValidateNotificationThemeContentRequest
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateNotificationThemeContentRequest'
+        required: true
+      tags:
+        - NotificationThemes
+      responses:
+        '200':
+          description: The validation of the notification was performed successfully (does not mean that the content is valid)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateNotificationThemeContentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /passwords/generate:
+    get:
+      summary: Generate a password
+      description: Generate a password that respects the user's password policy
+      operationId: generatedPassword
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: groupIds
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: integer
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - DEFAULT
+              - ANONYMOUS
+      tags:
+        - Passwords
+      responses:
+        '200':
+          description: The password was successfully generated and retrieved
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: The generated password
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/GeneralError'
+  /directaccesstokens/{id}/accept-license:
+    post:
+      summary: Accepts the license for a direct access token
+      description: Accepts the license for a direct access token
+      operationId: acceptLicenseForDirectAccessToken
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      tags:
+        - DirectAccessTokens
+      responses:
+        '200':
+          description: License was accepted for direct access token.
+          content: { }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/GeneralError'
+components:
+  schemas:
+    ShareOwner:
+      description: The list of shares owned by a user
+      type: object
+      properties:
+        userId:
+          type: integer
+          description: The id of the user who owns one or many shares.
+        username:
+          type: string
+          description: The username of the user who owns one or many shares.
+        ownedShares:
+          type: array
+          items:
+            $ref: '#/components/schemas/OwnedShareInfo'
+      required:
+        - userId
+        - username
+        - ownedShares
+    OwnedShareInfo:
+      description: The information about a share owned by a user
+      type: object
+      properties:
+        id:
+          type: integer
+          description: The share id.
+        name:
+          type: string
+          description: The share name.
+        lastActivityDate:
+          type: string
+          format: date-time
+          description: The date at which the last activity occurred in this share.
+        numberOfFiles:
+          type: integer
+          format: int64
+          description: The number of files in the share.
+      required:
+        - id
+        - name
+        - lastActivityDate
+        - numberOfFiles
+    GroupInfo:
+      description: The information about a group
+      type: object
+      properties:
+        id:
+          type: integer
+          description: The group id.
+        name:
+          type: string
+          description: The group name.
+        description:
+          type: string
+          description: Description of the group.
+      required:
+        - id
+        - name
+        - description
+    Entity:
+      description: The list of referenced entities for a given entity
+      properties:
+        id:
+          type: integer
+          description: The entity id.
+        name:
+          type: string
+          description: The entity name.
+        referencedEntities:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReferencedEntity'
+      required:
+        - id
+        - name
+        - referencedEntities
+    ReferencedEntity:
+      description: The information about a referenced entity
+      properties:
+        name:
+          type: string
+          description: The entity name.
+        type:
+          type: string
+          description: The entity type.
+          enum:
+            - TEMPLATE
+            - SHARE
+            - GROUP
+      required:
+        - name
+        - type
+    SwitchDomainMatchingUser:
+      description: Describes a matching user in the system.
+      type: object
+      properties:
+        id:
+          type: integer
+          description: User's Id in the system. It is generated at user creation time and read-only afterwards.
+          example: 1
+        userName:
+          type: string
+          description: User Id used to login to the application.
+          example: userName1
+        displayName:
+          type: string
+          description: 'The name of the user as commonly displayed. (ex: John Doe).'
+          example: John Doe
+        email:
+          type: string
+          description: 'The email address of the user. (ex: jdoe@example.com).'
+          example: jdoe@example.com
+        userRole:
+          type: integer
+          description: |
+            Role:
+             * 0 - ROLE_STANDARD: A standard user with the following rights:
+                      Transfer files
+                      Invite people to share (if enabled)
+                      Manage their inbox
+                      Delete files they have uploaded
+             * 1 - ROLE_SYSTEM_ADMINISTRATOR: An administrator account can perform any action in the system except transfer files and receive files.
+             * 2 - ROLE_SYSTEM_AUTOMATE: A special role indicating an automated process. This should NOT be used for user accounts.
+             * 3 - ROLE_ANONYMOUS: A special role created to represent the rights of users which receive a link to download a file.They are not "true" users of the solution since there is no account created in their name.They only have the right to download the file which was sent to them.
+             * 4 - ROLE_GUEST: A role identifying users that were invited to share files in the solution.They have a "true" account unlike anonymous users.They have the same rights as a RESTRICTED user but they cannot invite people to share.
+             * 5 - ROLE_RESTRICTED: A role created to prepare the transition of standard users.Currently, this role has exactly the same rights as a standard users.
+      required:
+        - id
+        - userName
+        - displayName
+        - email
+        - userRole
+    RetrieveEncryptionContextRequest:
+      description: The request to retrieve the encryption context stored in a PKCS7 file
+      type: object
+      properties:
+        transferUUID:
+          type: string
+          description: The UUID of the transfer for which to retrieve the encryption context.
+          example: 12ef4f63-9ece-4197-afeb-4f5d81f80418
+        wrappingPublicKey:
+          type: string
+          format: byte
+          description: The public key used to wrap the symmetric key.
+          example: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5Scv27a5omXv4Kjdh8NEu1dPMtNbYexrm7Z5494q5yYVSpUeHPBd8DzASn+7SN3irE5kgixeL+2vp2fL5N6GyoKevdA1vssVdMcZsYWJqAxtHYxt51BtIppEyJD/eAYF7quQX9pK48BDFrv5bq9yFjn/oCB3nK3gLq+JbK0YM7C1xDzu5nRrlnG8hX5Y/L+JZSdFqf3N6fMZSFwGkO2ft0+n39JMpMcexD2qib1cG1osSNWer5roFVO3LnKDb/K9rMBiYEUEajMAe+AdxfqoHlZpSa2h0pbbx43zwBu5cod0UVoeGQkLCjh2B0coiIurA55k+/kgLKPECFpIib+QjwIDAQAB
+        wrappingAlgorithm:
+          $ref: '#/components/schemas/WrappingAlgorithmEnum'
+      required:
+        - transferUUID
+        - wrappingPublicKey
+        - wrappingAlgorithm
+    RetrieveEncryptionContextResponse:
+      description: The response when retrieving the encryption context stored in a PKCS7 file
+      type: object
+      properties:
+        wrappedSymmetricKey:
+          type: string
+          format: byte
+          description: The wrapped symmetric key.
+          example: m8vTHqOoEFFyEpBKDnY0Ee4CKFyH58D/TQEMW+ZcS9oZWtzH2Liu4YmT5vAxPxMrHr8fgedDY1dpPqEEHna8dIyT+soWigB//DmEpKkpBjc4nd4pUCGE8t0BlenYnBljD5jFNfWoP4mq4oRYCrZVuQTaoDRC29n4a7rFKx4Jwr6gUeT8WmTS6PkWsPXI8sHV1oomcg1+yw2I8WoBDo0HbRl/fbSZBtkfCNnT2lGlOBTL7GtwOgQjaVdnZpcxJEeCppKW828csrjKal+KyWV3Wvbi32H77XzNs55mXiI5ZX6VINSJNH+H+1+W6QR29gF7STbOq+7zMXIlFy1PKQMGfA==
+        encryptionMode:
+          $ref: '#/components/schemas/EncryptionModeEnum'
+        iv:
+          type: string
+          format: byte
+          description: The IV.
+          example: XGVtXOsRVRNf7gYbqKtKPQ==
+        digestAlgorithm:
+          $ref: '#/components/schemas/DigestAlgorithmEnum'
+      required:
+        - wrappedSymmetricKey
+        - iv
+        - digestAlgorithm
+    StoreSignatureContextUploadRequest:
+      type: object
+      properties:
+        uploadId:
+          type: string
+          description: The Transfer Id that uniquely identifies an upload file transfer.
+          example: 94f07ba9-e12d-47f2-b1f7-032cdc354572
+        signatureContext:
+          $ref: '#/components/schemas/SignatureContext'
+      description: The request to store the signature context of a PKCS7 file in the
+        database for uploads.
+    StoreSignatureContextDownloadRequest:
+      description: The request to store the signature context of a PKCS7 file in the database for downloads.
+      type: object
+      properties:
+        versionUUID:
+          type: string
+          description: The version Id that uniquely identifies a file version.
+          example: 12ef4f63-9ece-4197-afeb-4f5d81f80418
+        signatureContext:
+          $ref: '#/components/schemas/SignatureContext'
+      required:
+        - versionUUID
+        - signatureContext
+    GenerateDefaultAnonymousShareNameRequest:
+      description: Request to generate a default anonymous share name for direct access token mode
+      type: object
+      properties:
+        operationType:
+          type: string
+          description: |
+            Selects the share name template:
+            - `REQUEST`: Request File template.
+            - `SEND`: Quick Send template.
+          enum:
+            - REQUEST
+            - SEND
+          example: SEND
+        emails:
+          type: string
+          description: This is a list of emails representing the recipients (separated by ;).
+        language:
+          type: string
+          description: The language used to generate the name. If not specified, the user language will be used.
+      required:
+        - operationType
+    GenerateDefaultAnonymousShareNameResponse:
+      description: Response containing the generated share name for direct access token mode
+      type: object
+      properties:
+        shareName:
+          type: string
+          description: The generated share name.
+          example: Files sent from John to Jane on ...
+      required:
+        - shareName
+    AnonymousShareNameAvailabilityRequest:
+      description: Request asking whether a share name is still free for an anonymous transfer
+      type: object
+      properties:
+        shareName:
+          type: string
+          description: The share name to test. A blank name is reported as available, the creation generating one.
+          example: Files requested from Jane
+      required:
+        - shareName
+    AnonymousShareNameAvailabilityResponse:
+      description: Response telling whether the share name is still free
+      type: object
+      properties:
+        available:
+          type: boolean
+          description: True when no existing share collides with either form of the name.
+      required:
+        - available
+    RetrieveSignatureContextRequest:
+      description: The request to retrieve the signature context of a PKCS7 file in the database
+      type: object
+      properties:
+        transferUUID:
+          type: string
+          description: The UUID of the transfer for which the signature context must be retrieved.
+          example: 12ef4f63-9ece-4197-afeb-4f5d81f80418
+      required:
+        - transferUUID
+    RetrieveSignatureContextResponse:
+      description: The response when retrieving the signature context of a PKCS7 file in the database
+      type: object
+      properties:
+        signatureContext:
+          $ref: '#/components/schemas/SignatureContext'
+      required:
+        - signatureContext
+    SignatureContext:
+      description: Contains information about the signature context of a PKCS7 file
+      type: object
+      properties:
+        signerPublicKey:
+          type: string
+          format: byte
+          description: The public key of the signer.
+          example: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwmt6ErNLsS4WwPZ9DH8MIROVCPU62PQkgogpqnonAn5NHV2UjvefNE4FA8LDThOPMSihv9zu0Ez+7limdOYzAaalMYTolCncWRK6uLLUBuKD6JNK6oOJiCyFAn4KkaGyIId7/bbo5cGeQwmytb7qupc9mbaa6tuTLw/k7lU1SvNSKot8+jZ0y1RRTuLxKkUSKHqm9gqzn+9z+xmbtNnTzNfKfEbQyyH2pzaNrh6e6hLmL5mQpqGJ9tAzTcoYIn+9Is/XaX1WVWRi8RDLpOeyWVgEcuC9G3ymW7HkPg+WvRbZSs3KgPbvzO3+8ofhAtgc6kjZejOlePr4WmDhTI51SwIDAQAB
+        signedData:
+          type: string
+          format: byte
+          description: The signed data, used to validate the signature.
+          example: MV0wGAYJKoZIhvcNAQkDMQsGCSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMTkwMTMwMTg0ODQ2WjAjBgkqhkiG9w0BCQQxFgQUr6bIs6L66VeF3H2WhaV4NdcDrIg=
+        signature:
+          type: string
+          format: byte
+          description: The signature of the file.
+          example: TSEDnRquoYZjlJMMlYdRCTfPDiuGRsmvlQVzWoCy4o6/L6g4+KuzKHJVNSXyDsc5y4xKxu56x6uRBzaNv0q5oPacm+9pqykTii5Qd0iadMrKXkFYvJ5I6/jeH1GMMCqsgvoCXRvo9Xz+aj2ztJ8RY2Z0G1leqO2K9M2geuNJgXUD2M+vus9UjssYpAJ2dgnCmhkp5hl5j7LQqyYxmiF5J5cr/+y4iL8xqdp4Lx4/WvHsjvcCgg2rt0t20mph4A1cgJzrT0sCUMn0JO+X51Ccl7ejqwf+WupV+oJ2+qA4SgFNDidcLHT6AisUqG0PpcKLb7N7RqiM+4C6NsfrSrS/4ACAD9ZiFGkEGJlFEbz4jLc=
+      required:
+        - signerPublicKey
+        - signedData
+        - signature
+    FinalizeDownloadRequest:
+      description: The request to finalize a download
+      type: object
+      properties:
+        transferUUID:
+          type: string
+          description: The UUID of the transfer for which the download must be finalized.
+          example: 12ef4f63-9ece-4197-afeb-4f5d81f80418
+        success:
+          type: boolean
+          description: Whether the download was a success or not.
+          example: true
+        message:
+          type: string
+          description: A message describing how the finalization process went.
+          example: Signature is invalid
+      required:
+        - transferUUID
+        - success
+    RetrieveSystemPublicKeyResponse:
+      description: The response when retrieving the system public key
+      type: object
+      properties:
+        systemCertificateId:
+          type: integer
+          format: int64
+          description: The id of the system certificate.
+          example: 1
+        systemPublicKey:
+          type: string
+          format: byte
+          description: The system public key.
+          example: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAk5ZH4hg9bJh3+lUbPDumWnTyrWpCkfbyhGbaW6IRhBVF1yjphQ09KnABKxbYe7QS3U5Z9V59/6hAaDz0fbvPzdNcstJ0gsDB23MFdBzDc1uVY88214y1d/vCGOdlYoN0RLYzdzE5vUX5oEtAN6w+cFifdzeW6gmy87A7O+8ZH7lYj3rXKXbXFTBQLs71tyc/m7u7Z1CtoM5+FW8Xkc9KaN3XNaObRKExL/gHyyTOpY+6ReLcop5Yo6BYmeYlH3TxkGgImpQBfcwcvpj/ReuEeWat1ZV8hAdJydcTSEvtZDPrlzUfRYYV5KtbyAJ+2aeqy86RyrcCC/BT9Hdt6U2vRwIDAQAB
+      required:
+        - systemCertificateId
+        - systemPublicKey
+    RewrapSymmetricKeyRequest:
+      description: The request to rewrap the symmetric key
+      type: object
+      properties:
+        systemCertificateId:
+          type: integer
+          format: int64
+          description: The id of the system certificate.
+          example: 1
+        wrappedSymmetricKey:
+          type: string
+          format: byte
+          description: The wrapped symmetric key.
+          example: Skot2g7lfJB8CdN8Ukl6pY1Uk4YyZkQHx6UkGsk5ExnOUr3S7mzHOohfXDgpzSe2QwgQplaeH/6/FGUQLltPGDAU7HNmX7lVY6wW/MIkYF/1g2ZhP/jZ3uRbW7UowvShnEUVmNReONctU0Ep6zmXIzkObMM82kEPJPdJZUyKgX4UTTTohSK01cpHhwV7H1yLa/bGHY6nu8ThnEokz5Qk/7jfFtKD4wglycw8NWQpWkM0l2rKfY9Qto6iHjCCYu1D/wVAQloPhtKNGGBcv2XMIL7AaqNatDZHbIOiE6ksoNduCAesszO6RN+f7UykPn7uoOE2yU5tD0RJ9o7WrlZjag==
+        wrappingAlgorithm:
+          $ref: '#/components/schemas/WrappingAlgorithmEnum'
+        recipientCertificateInfo:
+          type: array
+          description: The certificate informations about each recipient.
+          items:
+            $ref: '#/components/schemas/RecipientCertificateInfo'
+      required:
+        - systemCertificateId
+        - wrappedSymmetricKey
+        - wrappingAlgorithm
+        - recipientCertificateInfo
+    RecipientCertificateInfo:
+      description: The certificate informations about a recipient
+      type: object
+      properties:
+        issuerName:
+          type: string
+          description: The issuer name of the recipient certificate.
+          example: CN=sfilersystem, OU=sfiler, DC=com
+        serialNumber:
+          type: string
+          description: The serial number of the recipient certificate.
+          example: "38003322371763250097514654634756848297395747115"
+        publicKey:
+          type: string
+          format: byte
+          description: The public key of the recipient.
+          example: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnGLbJR9x6ihfgfcpuJglo7gVxmzP/fP+EFm+BRxuLb7vjRMputAOx61AL3q/ZDeOLhTuxXFK3ImwL67oK6Ko93B6yy+lQQ2tDertq1kxae9TuvmV33NPeg7G+aCX3ZAq8b4TQTkErFIpKhNd6vnxvBTna1e8NDC1M0TozAbXkgz6D+yJyFWAp7j7Ya8a6kh1mgIuDqXCqbjGk20T7XQHBIJU4o2sk5PymVuWa+AsPmKNduKBV+s9vELZ0baSl9fxOhejetb2gAJlpPOZo4PGN6wKitT20jo8a8iVQ+cXeYJJZaBW7DVNGkK6MSiRabkPv7gEuOJNRLbo4iV6rfgV7QIDAQAB
+      required:
+        - issuerName
+        - serialNumber
+        - publicKey
+    RewrapSymmetricKeyResponse:
+      description: The response when rewrapping the symmetric key
+      type: object
+      properties:
+        recipientInfo:
+          type: array
+          description: The information about each recipient.
+          items:
+            $ref: '#/components/schemas/RecipientInfo'
+      required:
+        - recipientInfo
+    RecipientInfo:
+      description: The certificate informations about a recipient
+      type: object
+      properties:
+        issuerName:
+          type: string
+          description: The issuer name of the recipient certificate.
+          example: CN=sfilersystem, OU=sfiler, DC=com
+        serialNumber:
+          type: string
+          description: The serial number of the recipient certificate.
+          example: "38003322371763250097514654634756848297395747115"
+        wrappedSymmetricKey:
+          type: string
+          format: byte
+          description: The symmetric key wrapped with the public key of the recipient.
+          example: bnC8/36mJVkSHE1pamnuUroYecqfEvisN9D/68Ehv1G6/3IQ9Je/4UTDxNoaS1hO3ZoVPdvv62Ny5iGYAPd0ZQ/BhDstJcHBv4JiaDGQZXMXBHHamK+vj1gNXAsrJgbryfyaSjz22lhk3jVBmFn6WPjvIw04dOXzdFUxBeXm8IqK5DegH3ihI/qz3GboWMIrjeBhcBm5LMLEAP9JX6e/jGujBN1urr26VUPtVS1Zx5SDNZnKp32h/t3A3nJiW+d4LRVctNDwe4BVwUxlDFpxxj82iFnMvL3rLXcu/5M55vqQc4L6leVpuCOAS9r8jmVq0+F3SSWq5jcEhbrF3sZu9w==
+      required:
+        - issuerName
+        - serialNumber
+        - wrappedSymmetricKey
+    CalculateMessageSignatureRequest:
+      description: The request to calculate a message signature
+      type: object
+      properties:
+        systemCertificateId:
+          type: integer
+          format: int64
+          description: The id of the system certificate.
+          example: 1
+        signingTime:
+          type: string
+          format: date-time
+          description: The signingTime attribute of the SignerInfo.
+          example: 2019-02-13T11:42:51.7-05:00
+        messageDigest:
+          type: string
+          format: byte
+          description: The messageDigest attribute of the SignerInfo.
+          example: r6bIs6L66VeF3H2WhaV4NdcDrIg=
+        digestAlgorithm:
+          $ref: '#/components/schemas/DigestAlgorithmEnum'
+        wrappedSymmetricKey:
+          type: string
+          format: byte
+          description: The wrapped symmetric key.
+          example: Skot2g7lfJB8CdN8Ukl6pY1Uk4YyZkQHx6UkGsk5ExnOUr3S7mzHOohfXDgpzSe2QwgQplaeH/6/FGUQLltPGDAU7HNmX7lVY6wW/MIkYF/1g2ZhP/jZ3uRbW7UowvShnEUVmNReONctU0Ep6zmXIzkObMM82kEPJPdJZUyKgX4UTTTohSK01cpHhwV7H1yLa/bGHY6nu8ThnEokz5Qk/7jfFtKD4wglycw8NWQpWkM0l2rKfY9Qto6iHjCCYu1D/wVAQloPhtKNGGBcv2XMIL7AaqNatDZHbIOiE6ksoNduCAesszO6RN+f7UykPn7uoOE2yU5tD0RJ9o7WrlZjag==
+        wrappingAlgorithm:
+          $ref: '#/components/schemas/WrappingAlgorithmEnum'
+        wrappingIv:
+          type: string
+          format: byte
+          description: The IV used for wrapping.
+          example: XGVtXOsRVRNf7gYbqKtKPQ==
+      required:
+        - systemCertificateId
+        - signingTime
+        - messageDigest
+        - digestAlgorithm
+        - wrappedSymmetricKey
+        - wrappingAlgorithm
+        - wrappingIv
+    CalculateMessageSignatureResponse:
+      description: The response when calculating a message signature
+      type: object
+      properties:
+        messageSignature:
+          type: string
+          format: byte
+          description: The message signature.
+          example: UqSe9f6Svq7j5JslMtx84D4/CNb9TO4ms8BbyJ6BztGi9snbcgGaaQ2SmtSkh3j5Chip+0jRPb6w9lPoxYt5PqiaXYJCqogOx5ujcdpqBiynF/WexQFSNGBWRVp4Xo4RAvxs0Oym+BpUSJI1tFnCY7jaiQUKwSmtcP5qbNEwsfFeER+lPLx+Hs+/9wR1dpVVD8JkQn4fAwqVplbdETFt13ztX3KCkKbfIML6p/uoWWxKuwR3i9UUkt5DaAdP2F4T2B1ZgSxmssEZbDKe+qUipr7XRcDCkatEzCcVQvaOvB+aO24nQtZ+Wn0EpSneJeqjtnMr7Kd21i9KmxnJky9S23vegbx/5Tzir2NLeUNjEYs=
+      required:
+        - messageSignature
+    WrappingAlgorithmEnum:
+      type: string
+      enum:
+        - RSA/ECB/OAEPwithSHA-256andMGF1Padding
+      description: The wrapping algorithm
+      example: RSA/ECB/OAEPwithSHA-256andMGF1Padding
+    DigestAlgorithmEnum:
+      type: string
+      enum:
+        - SHA-1
+      description: The digest algorithm
+      example: SHA-1
+    EncryptionModeEnum:
+      type: string
+      enum:
+        - CTR
+        - CBC
+      description: The encryption mode
+      example: CTR
+    ReportInfo:
+      type: object
+      discriminator:
+        propertyName: reportType
+      properties:
+        reportType:
+          type: string
+        language:
+          type: string
+          example: en
+        limitOfEntity:
+          type: integer
+          example: 5
+        showSubEntities:
+          type: boolean
+          example: true
+        outputType:
+          type: string
+          example: PDF
+          enum:
+            - PDF
+            - CSV
+        loggedUserId:
+          type: integer
+          example: 0
+    UserReportInfo:
+      allOf:
+        - $ref: '#/components/schemas/ReportInfo'
+        - type: object
+          properties:
+            sortType:
+              type: string
+              example: USERNAME
+              enum:
+                - USERNAME
+                - LAST_ACCESS
+                - DESCRIPTION
+            filter:
+              type: string
+              example: ALL_USERS
+              enum:
+                - ALL_USERS
+                - ALL_EXCEPT_ADMIN
+                - ADMIN_ONLY
+                - ORPHANS_ONLY
+            userRoleType:
+              type: string
+              example: USER_ADMIN
+              enum:
+                - SYSTEM_ADMIN
+                - USER_ADMIN
+          required:
+            - language
+            - limitOfEntity
+            - showSubEntities
+            - sortType
+            - filter
+            - outputType
+    GroupReportInfo:
+      allOf:
+        - $ref: '#/components/schemas/ReportInfo'
+        - type: object
+          properties:
+            sortType:
+              type: string
+              example: NAME
+              enum:
+                - NAME
+                - DESCRIPTION
+            filter:
+              type: string
+              example: ALL_GROUPS
+              enum:
+                - ALL_GROUPS
+                - EMPTY_USER
+            userRoleType:
+              type: string
+              example: GROUP_ADMIN
+              enum:
+                - SYSTEM_ADMIN
+                - GROUP_ADMIN
+          required:
+            - language
+            - limitOfEntity
+            - showSubEntities
+            - sortType
+            - filter
+            - outputType
+    CommunityReportInfo:
+      allOf:
+        - $ref: '#/components/schemas/ReportInfo'
+        - type: object
+          properties:
+            sortType:
+              type: string
+              example: NAME
+              enum:
+                - NAME
+                - DESCRIPTION
+            filter:
+              type: string
+              example: ALL_COMMUNITIES
+              enum:
+                - ALL_COMMUNITIES
+                - EMPTY_USER
+                - EMPTY_TICKET
+            userRoleType:
+              type: string
+              example: COMMUNITY_ADMIN
+              enum:
+                - SYSTEM_ADMIN
+                - COMMUNITY_ADMIN
+          required:
+            - language
+            - limitOfEntity
+            - showSubEntities
+            - sortType
+            - filter
+            - outputType
+    KeyRenewalReportInfo:
+      allOf:
+        - $ref: '#/components/schemas/ReportInfo'
+        - type: object
+          properties:
+            sortType:
+              type: string
+              example: CREATION_DATE
+              enum:
+                - CREATION_DATE
+                - EXPIRATION_DATE
+            filter:
+              type: string
+              example: ALL
+              enum:
+                - ALL
+                - USER
+                - COMMUNITY
+                - SYSTEM
+                - CA
+          required:
+            - sortType
+            - filter
+            - outputType
+    FileReportInfo:
+      allOf:
+        - $ref: '#/components/schemas/ReportInfo'
+        - type: object
+          properties:
+            sortType:
+              maxLength: 20
+              type: string
+              enum:
+                - FILENAME
+                - DATE_ASC
+                - DATE_DESC
+                - FILE_SIZE_ASC
+                - FILE_SIZE_DESC
+            filter:
+              type: string
+              enum:
+                - ALL
+                - ALL_USERS
+                - ALL_COMMUNITIES
+                - SPECIFIC_USER
+                - SPECIFIC_COMMUNITY
+                - SPECIFIC_STORAGE
+            elementId:
+              type: integer
+            grouping:
+              type: string
+              enum:
+                - NONE
+                - BY_RECIPIENT
+                - SUMMARY_ONLY
+                - BY_STORAGE
+          required:
+            - sortType
+            - filter
+            - grouping
+            - outputType
+    EventAuditReportInfo:
+      allOf:
+        - $ref: '#/components/schemas/ReportInfo'
+        - type: object
+          properties:
+            systemEventAuditOIds:
+              type: array
+              items:
+                type: string
+            startDate:
+              type: string
+            endDate:
+              type: string
+            dateLang:
+              type: string
+          required:
+            - systemEventAuditOIds
+            - startDate
+            - endDate
+            - dateLang
+            - outputType
+    AuditReportInfo:
+      allOf:
+        - $ref: '#/components/schemas/ReportInfo'
+        - type: object
+          properties:
+            username:
+              type: string
+            userUUID:
+              type: string
+            communityName:
+              type: string
+            communityUUID:
+              type: string
+            actions:
+              type: array
+              items:
+                type: integer
+            fileName:
+              type: string
+            startDate:
+              type: string
+            endDate:
+              type: string
+            searchInAllCommunities:
+              type: boolean
+            communities:
+              type: array
+              items:
+                type: string
+            includeAutomate:
+              type: boolean
+            auditReportType:
+              type: string
+              enum:
+                - USER
+                - COMMUNITY
+                - ADMIN
+            dateLang:
+              type: string
+          required:
+            - actions
+            - startDate
+            - endDate
+            - auditReportType
+            - dateLang
+            - outputType
+    ReportId:
+      type: object
+      properties:
+        reportId:
+          type: string
+      required:
+        - reportId
+    ReportStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - WAITING
+            - PROCESSING
+            - GENERATING
+            - READY
+            - FAILED
+      required:
+        - status
+    DomainSwitchStatus:
+      description: Describes the Domain Switch status.
+      type: object
+      properties:
+        targetedUserName:
+          type: string
+          description: The targeted Username of the user performing the domain switch.
+          example: userName2
+        domainId:
+          type: integer
+          description: The domain id of the targeted domain switch.
+          example: 1
+        expirationDate:
+          type: string
+          format: date-time
+          description: The domain switch expiration date.
+        status:
+          type: string
+          enum:
+            - NONE
+            - IN_PROGRESS
+            - EXPIRED
+          description: |
+            Status:
+             * NONE: There is no ongoing domain switch.
+             * IN_PROGRESS: There is currently a valid ongoing domain switch that is taking place.
+             * EXPIRED: There is currently an ongoing domain switch but it is expired.
+      required:
+        - status
+    UserGroupSender:
+      description: Describes a group in the system.
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Group''s Id in the system. It is generated at group creation time and read-only afterwards.
+        groupName:
+          type: string
+          description: Name of the group.
+        groupSenderName:
+          type: string
+          description: When a group is allowed to be used as a sender, this property is use to set the sender name.
+      required:
+        - id
+        - groupName
+        - groupSenderName
+    UserMfaStatus:
+      description: Describes the MFA status of a user.
+      type: object
+      properties:
+        enforced:
+          type: boolean
+          description: Flag indicating if the MFA is enforced.
+        enabled:
+          type: boolean
+          description: Flag indicating if the MFA is enabled.
+      required:
+        - enforced
+        - enabled
+    NotificationTheme:
+      description: The list of groups by a notification theme
+      type: object
+      properties:
+        id:
+          type: integer
+          description: The id of the notification theme used by one or many groups.
+        name:
+          type: string
+          description: The name of the notification theme used by one or many groups.
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupInfo'
+      required:
+        - id
+        - name
+        - groups
+    Theme:
+      description: Describes a theme in the system
+      type: object
+      properties:
+        id:
+          type: integer
+          description: The id of the theme.
+        name:
+          type: string
+          description: The name of the theme.
+        notificationThemeId:
+          type: integer
+          description: The id of the notification theme.
+        guiTheme:
+          type: string
+          description: The GUI theme.
+        defaultTheme:
+          type: boolean
+          description: The theme is the default.
+        active:
+          type: boolean
+          description: The theme is active.
+      required:
+        - id
+        - name
+        - notificationThemeId
+        - guiTheme
+        - defaultTheme
+        - active
+    ResourceBundlePropertyOverride:
+      description: Describes a resource bundle property override.
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: The Id of the resource bundle property override in the system. It is generated at creation time and read-only afterwards.
+        bundleName:
+          type: string
+          description: The name of the resource bundle.
+        language:
+          type: string
+          description: The language of the resource bundle property.
+        key:
+          type: string
+          description: The key of the resource bundle property.
+        value:
+          type: string
+          description: The value representing the overridden message for the specified resource bundle property.
+      required:
+        - id
+        - bundleName
+        - language
+        - key
+        - value
+    FeatureFlag:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The feature flag name.
+        active:
+          type: boolean
+          description: Indicates if the feature flag is active.
+      required:
+        - name
+        - active
+    Error:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        fields:
+          type: string
+    BootstrapConfigurationRequest:
+      description: The request to bootstrap the configuration of a Gateway or GUI instance
+      type: object
+      properties:
+        instanceName:
+          type: string
+          description: The instance name of the Gateway or GUI.
+          example: Gateway1
+        instanceVersion:
+          type: string
+          description: The version of the instance
+          example: 4.13.0
+        signature:
+          type: string
+          description: The signature to be used to validate the communication with the server.
+          example: X9tmOExQp25nDpx389487N5Z5BnTr1Ic7VL9ipIHycOb4RqEbWNNSkglZeNpmriuYiIm+KaI6roiOm5d38RbWESiCGu1ruguaYnvKJhwT8k+vVyGSuMhOOsAz6B7xdgbpvZcKPLkhW7udlc/4ISukqUXMdu2jLRerMnX5uWw3JUzahVZiFfihCsY1uvHsyEStGQvm5QuABcbuOMmcrwc7PUcYs5W8yN+UhCDs/fPlDZPfyRsNKBuML1Xc4V3Rx4r7iN1+n/8GS6WQT1S+eq9L3BHKh3izlJd1861MkfDAhNIwv5sBgOnAM58mB3Hy/o9ofKjphO8G2l9fSoE/nju7A==
+      required:
+        - instanceName
+        - instanceVersion
+        - certificate
+    BootstrapConfigurationResponse:
+      type: object
+      properties:
+        keyStoreContent:
+          type: string
+          format: byte
+          description: The keyStore content.
+        keyStorePassword:
+          type: string
+          description: The encoded keyStore password.
+          example: 09EB/A1+OnoU3hgEO+08wTIMroT8nPuYYUHYm/RxzwnMsJUf+3B456XdNGmQAiIa
+      required:
+        - keyStoreContent
+        - keyStorePassword
+    AddUntrustedCertificateRequest:
+      type: object
+      properties:
+        instanceName:
+          type: string
+          description: The instance name of the Gateway or GUI.
+          example: Gateway1
+        alias:
+          type: string
+          description: The alias of the untrusted certificate.
+          example: untrusted_cert_alias
+        certificate:
+          type: string
+          format: byte
+          description: The untrusted certificate content.
+      required:
+        - instanceName
+        - alias
+        - certificate
+    ValidateNotificationThemeContentRequest:
+      type: object
+      properties:
+        subject:
+          type: string
+          description: The subject of the notification (only used for email notifications).
+          example: subjectContent
+        body:
+          type: string
+          description: The notification body in base64.
+          example: Ym9keUNvbnRlbnQ=
+        includeInFramework:
+          type: boolean
+          description: When this flag is true, the returned body will be included in the framework. This flag is only relevant for email notifications and will be ignored for SMS notifications.
+          example: true
+          default: false
+      required:
+        - body
+    ValidateNotificationThemeContentResponse:
+      type: object
+      description: The validation result of the notification theme content. The subjectValidationResult is not required since the subject is relevant only for email notifications.
+      properties:
+        subjectValidationResult:
+          $ref: '#/components/schemas/NotificationThemeContentValidationResult'
+        bodyValidationResult:
+          $ref: '#/components/schemas/NotificationThemeContentValidationResult'
+      required:
+        - bodyValidationResult
+    NotificationThemeContentValidationResult:
+      properties:
+        valid:
+          type: boolean
+          description: Indicates if the template content is valid.
+        compiledContent:
+          type: string
+          description: The compiled content (returned only if the content compilation was successful).
+        compilationError:
+          type: string
+          description: The compilation error (returned only if the content compilation was not successful).
+        codeNearError:
+          type: string
+          description: The code near where the error has been found (returned only if the content compilation was not successful).
+        line:
+          type: integer
+          description: The line where the error has been found (returned only if the content compilation was not successful).
+        column:
+          type: integer
+          description: The column where the error has been found (returned only if the content compilation was not successful).
+      required:
+        - valid
+    CountResult:
+      type: object
+      properties:
+        count:
+          type: integer
+          format: int64
+          example: 1
+      required:
+        - count
+  responses:
+    BadRequest:
+      description: Bad request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: There is a conflict with an existing resource. This often happens when creating a new resource that already exists.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Not permitted to access this entity or perform this operation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    GeneralError:
+      description: General Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Entity not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Not authorized to access this entity or perform this operation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RequestEntityTooLarge:
+      description: Request is too large to process.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  securitySchemes:
+    AuthToken:
+      type: apiKey
+      description: The authentication token retrieved from a call to the login service
+      name: authToken
+      in: header
